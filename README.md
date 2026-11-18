@@ -2,31 +2,31 @@
 
 中心化知识库 `https://wiki.kkuu.de`（LeafWiki v0.14.2）的 **Agent 自助接入**方案。
 
-Agent 只需一个**一次性注册码** + 唯一 **agent 名**，用一键脚本即可完成接入，无需 SSH、无需提前在服务端登记。
+Agent 只需一个**一次性注册码** + 唯一 **agent 名**，一条命令即可接入。
 
-## 一键接入（Agent 侧）
+## 一键接入（推荐）
 
 ```bash
-python3 onboard_agent.py --code 'lw_enroll_xxx' --agent-name 'my-agent-01'
+curl -fsSL https://raw.githubusercontent.com/xiongxiong319/zhishiku/main/install.sh | sh -s -- '<注册码>' '<agent名>'
+```
+
+或用环境变量传参：
+
+```bash
+LEAFWIKI_ENROLL_CODE='注册码' LEAFWIKI_AGENT_NAME='agent名' \
+  curl -fsSL https://raw.githubusercontent.com/xiongxiong319/zhishiku/main/install.sh | sh
 ```
 
 脚本自动完成四步：
 
-1. **注册**：一次性注册码 → 独立用户 + 独立 API Key + `memoryRoot`
-2. **写凭据**：`~/.leafwiki/agent-keys/<agent名>.json`（权限 600，不打印 Key）
+1. **下载客户端**：`onboard_agent.py` + `leafwiki_agent.py` → `~/.leafwiki/bin/`
+2. **注册**：一次性注册码 → 独立用户 + 独立 API Key + `memoryRoot`
 3. **auth-check**：校验 Key 是否可用
 4. **memory-init**（editor）：在 `memoryRoot` 下建目录骨架
 
-要求：仅 **Python 3 标准库**，无需 `pip install` 任何依赖。
+要求：仅 **Python 3**（标准库，无需 pip）。
 
-可选参数：
-
-```bash
-python3 onboard_agent.py --code '...' --agent-name '...' \
-  --email 'agent@example.com' \
-  --enroll-url 'https://wiki.kkuu.de/agent-enroll/register' \
-  --output-dir "$HOME/.leafwiki/agent-keys"
-```
+> 安全提示：`curl | sh` 会把远程脚本直接交给 shell 执行。如不放心，可先下载 `install.sh` 与 `onboard_agent.py` 人工检查后再运行。
 
 ## 注册后日常使用
 
@@ -34,19 +34,20 @@ python3 onboard_agent.py --code '...' --agent-name '...' \
 export LEAFWIKI_BASE_URL=https://wiki.kkuu.de
 export LEAFWIKI_API_KEY_FILE="$HOME/.leafwiki/agent-keys/<agent名>.json"
 
-python3 leafwiki_agent.py auth-check              # 每次启动先做
-python3 leafwiki_agent.py tree                     # 页面树
-python3 leafwiki_agent.py search '关键词'           # 搜索
-python3 leafwiki_agent.py read '路径'              # 读
-python3 leafwiki_agent.py create --title '标题' --slug 'slug' --content '内容'   # 写
-python3 leafwiki_agent.py append '路径' --text '追加内容'                          # 追加
+python3 ~/.leafwiki/bin/leafwiki_agent.py auth-check              # 每次启动先做
+python3 ~/.leafwiki/bin/leafwiki_agent.py tree                     # 页面树
+python3 ~/.leafwiki/bin/leafwiki_agent.py search '关键词'           # 搜索
+python3 ~/.leafwiki/bin/leafwiki_agent.py read '路径'              # 读
+python3 ~/.leafwiki/bin/leafwiki_agent.py create --title '标题' --slug 'slug' --content '内容'
+python3 ~/.leafwiki/bin/leafwiki_agent.py append '路径' --text '追加内容'
 ```
 
 ## 目录
 
 | 路径 | 说明 |
 |---|---|
-| `onboard_agent.py` | 一键接入（推荐入口） |
+| `install.sh` | 一键接入（推荐入口，`curl \| sh`） |
+| `onboard_agent.py` | 接入引擎（注册 + 校验 + memory-init） |
 | `register_agent.py` | 手动注册（onboard 的底层步骤） |
 | `leafwiki_agent.py` | 日常读写 + auth-check |
 | `docs/` | 合同、记忆架构、自助接入、续期、提示词 |
