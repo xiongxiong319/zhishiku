@@ -416,10 +416,8 @@ class Handler(BaseHTTPRequestHandler):
                 if role not in {"viewer", "editor"}:
                     self.send_json(400, {"error": "role must be viewer or editor"})
                     return
-                if role == "editor":
-                    if not EDITOR_TOKEN:
-                        self.send_json(403, {"error": "editor self-service is disabled"})
-                        return
+                if role == "editor" and EDITOR_TOKEN:
+                    # 仅当管理员设置了令牌时才校验（未设令牌 = editor 自助开放）
                     supplied = self.headers.get("X-Editor-Token", "")
                     if not hmac.compare_digest(supplied, EDITOR_TOKEN):
                         self.send_json(403, {"error": "invalid editor token"})

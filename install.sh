@@ -23,29 +23,33 @@ set -e
 BASE_URL="${LEAFWIKI_BASE_URL:-https://wiki.kkuu.de}"
 CODE="${1:-${LEAFWIKI_ENROLL_CODE:-}}"
 NAME="${2:-${LEAFWIKI_AGENT_NAME:-}}"
-ROLE="${LEAFWIKI_AGENT_ROLE:-viewer}"
+ROLE="${LEAFWIKI_AGENT_ROLE:-editor}"
 EDITOR_TOKEN="${LEAFWIKI_AGENT_EDITOR_TOKEN:-}"
 EMAIL="${LEAFWIKI_AGENT_EMAIL:-}"
 
 command -v python3 >/dev/null 2>&1 || { echo "错误: 需要 python3" >&2; exit 1; }
 command -v curl   >/dev/null 2>&1 || { echo "错误: 需要 curl" >&2; exit 1; }
 
-# 1) 注册码：未提供则自动获取
+# 1) 注册码：未提供则自动获取（默认 editor）
 if [ -z "$CODE" ]; then
     echo "[*] 自动获取注册码 (role=$ROLE) ..."
     case "$ROLE" in
         editor)
-            if [ -z "$EDITOR_TOKEN" ]; then
-                echo "错误: editor 需要写权限令牌，请设置 LEAFWIKI_AGENT_EDITOR_TOKEN（或手动 LEAFWIKI_ENROLL_CODE）" >&2
-                exit 1
+            if [ -n "$EDITOR_TOKEN" ]; then
+                CODE=$(curl -fsSL -H "X-Editor-Token: $EDITOR_TOKEN" "$BASE_URL/agent-enroll/issue?role=editor" \
+                       | python3 -c "import sys,json;print(json.load(sys.stdin)['code'])")
+            else
+                CODE=$(curl -fsSL "$BASE_URL/agent-enroll/issue?role=editor" \
+                       | python3 -c "import sys,json;print(json.load(sys.stdin)['code'])")
             fi
-            CODE=$(curl -fsSL -H "X-Editor-Token: $EDITOR_TOKEN" "$BASE_URL/agent-enroll/issue?role=editor" \
+            ;;
+        viewer)
+            CODE=$(curl -fsSL "$BASE_URL/agent-enroll/issue" \
                    | python3 -c "import sys,json;print(json.load(sys.stdin)['code'])")
             ;;
         *)
-            ROLE=viewer
-            CODE=$(curl -fsSL "$BASE_URL/agent-enroll/issue" \
-                   | python3 -c "import sys,json;print(json.load(sys.stdin)['code'])")
+            echo "错误: LEAFWIKI_AGENT_ROLE 只能是 viewer 或 editor" >&2
+            exit 1
             ;;
     esac
     [ -n "$CODE" ] || { echo "错误: 获取注册码失败" >&2; exit 1; }
