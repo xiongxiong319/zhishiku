@@ -1,0 +1,27 @@
+[Unit]
+Description=LeafWiki one-time-code agent enrollment service
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=leafwiki-enroll
+Group=leafwiki-enroll
+EnvironmentFile=/etc/leafwiki-agent/enroll.env
+ExecStart=/usr/bin/python3 /opt/leafwiki-agent/agent_enrollment_server.py
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/leafwiki-enroll
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,25 @@
+{
+  "agents": [
+    {
+      "username": "agent-reader-01",
+      "email": "agent-reader-01@local",
+      "role": "viewer",
+      "keyName": "codex-reader-01",
+      "expiresDays": 90
+    },
+    {
+      "username": "agent-reader-02",
+      "email": "agent-reader-02@local",
+      "role": "viewer",
+      "keyName": "claude-reader-01",
+      "expiresDays": 90
+    },
+    {
+      "username": "agent-writer-01",
+      "email": "agent-writer-01@local",
+      "role": "editor",
+      "keyName": "writer-01",
+      "expiresDays": 90
+    }
+  ]
+}
