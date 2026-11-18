@@ -4,7 +4,7 @@
 
 **零参数**：注册码自动获取，agent 名交互输入（或由 Agent 先问你要名字再带名执行）。
 
-## 一键接入（零参数）
+## 一键接入（零参数，只读 viewer）
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiongxiong319/zhishiku/main/install.sh | sh
@@ -14,24 +14,24 @@ curl -fsSL https://raw.githubusercontent.com/xiongxiong319/zhishiku/main/install
 - 有终端时交互式输入 agent 名
 - 自动下载客户端、注册、auth-check、建记忆骨架
 
-### 写记忆的 Agent（editor）
+## 写记忆的 Agent（editor）
 
 ```bash
-LEAFWIKI_AGENT_ROLE=editor \
-LEAFWIKI_AGENT_EDITOR_TOKEN='<editor令牌>' \
-LEAFWIKI_AGENT_NAME='my-agent' \
-curl -fsSL https://raw.githubusercontent.com/xiongxiong319/zhishiku/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/xiongxiong319/zhishiku/main/install.sh | \
+  LEAFWIKI_AGENT_ROLE='editor' \
+  LEAFWIKI_AGENT_EDITOR_TOKEN='<editor令牌>' \
+  LEAFWIKI_AGENT_NAME='my-agent' \
+  sh
 ```
 
-- `editor` 可写，`viewer` 只读
-- editor 令牌由服务端管理员从 `/etc/leafwiki-agent/enroll.env` 的 `AGENT_ENROLL_EDITOR_TOKEN` 分发
-
-### 非交互（Agent 先问用户名字，再执行）
+## 非交互（Agent 先问用户名字，再带名执行）
 
 ```bash
-LEAFWIKI_AGENT_NAME='codex-editor-01' \
-  curl -fsSL https://raw.githubusercontent.com/xiongxiong319/zhishiku/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/xiongxiong319/zhishiku/main/install.sh | \
+  LEAFWIKI_AGENT_NAME='my-agent' sh
 ```
+
+> 注意：环境变量要加在管道右侧的 `sh` 前面（`... | VAR=x sh`），不能加在 `curl` 前面。
 
 ## 环境变量
 
@@ -51,7 +51,7 @@ LEAFWIKI_AGENT_NAME='codex-editor-01' \
 export LEAFWIKI_BASE_URL=https://wiki.kkuu.de
 export LEAFWIKI_API_KEY_FILE="$HOME/.leafwiki/agent-keys/<agent名>.json"
 
-python3 ~/.leafwiki/bin/leafwiki_agent.py auth-check              # 每次启动先做
+python3 ~/.leafwiki/bin/leafwiki_agent.py auth-check
 python3 ~/.leafwiki/bin/leafwiki_agent.py tree
 python3 ~/.leafwiki/bin/leafwiki_agent.py search '关键词'
 python3 ~/.leafwiki/bin/leafwiki_agent.py read '路径'

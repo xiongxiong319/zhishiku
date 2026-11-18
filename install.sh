@@ -51,18 +51,22 @@ if [ -z "$CODE" ]; then
     [ -n "$CODE" ] || { echo "错误: 获取注册码失败" >&2; exit 1; }
 fi
 
-# 2) agent 名：未提供则交互输入（有终端时从 /dev/tty 读，绕过 stdin 管道）
+# 2) agent 名：未提供则交互输入
 if [ -z "$NAME" ]; then
-    if [ -t 0 ] || [ -c /dev/tty ]; then
+    if [ -t 0 ]; then
         printf '请输入 agent 名 (3-64 位，字母/数字/._-): '
+        read -r NAME || true
+    else
+        # curl|sh 时 stdin 是管道，改从控制终端读
+        printf '请输入 agent 名 (3-64 位，字母/数字/._-): ' >/dev/tty 2>/dev/null || true
         read -r NAME < /dev/tty 2>/dev/null || true
     fi
-    if [ -z "$NAME" ]; then
-        echo "错误: 缺少 agent 名。" >&2
-        echo "      非交互方式请先确定名字再执行，例如：" >&2
-        echo "      LEAFWIKI_AGENT_NAME='my-agent' curl -fsSL $BASE_URL/../install.sh | sh" >&2
-        exit 1
-    fi
+fi
+if [ -z "$NAME" ]; then
+    echo "错误: 缺少 agent 名。" >&2
+    echo "      非交互请先确定名字，再用环境变量传入：" >&2
+    echo "      curl -fsSL https://raw.githubusercontent.com/xiongxiong319/zhishiku/main/install.sh | LEAFWIKI_AGENT_NAME='my-agent' sh" >&2
+    exit 1
 fi
 
 # 3) 下载客户端脚本
