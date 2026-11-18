@@ -16,7 +16,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 
 BASE_URL = os.environ.get("LEAFWIKI_BASE_URL", "https://wiki.kkuu.de").rstrip("/")
@@ -37,6 +37,8 @@ ALLOWED_NETWORKS = [
     for item in os.environ.get("AGENT_ENROLL_ALLOWED_IPS", "").split(",")
     if item.strip()
 ]
+# 自助发 editor 码所需的共享令牌；为空则 editor 自助发码关闭（只允许 viewer）
+EDITOR_TOKEN = os.environ.get("AGENT_ENROLL_EDITOR_TOKEN", "").strip()
 
 CODES_LOCK = threading.Lock()
 RATE_LOCK = threading.Lock()
@@ -120,6 +122,28 @@ def release_code(code, agent_name):
                     entry.pop("usedAt", None)
                     save_codes(data)
                 return
+
+
+def issue_self_service_code(role):
+    """自助发一枚一次性注册码（7 天码 / 90 天 Key）。role 仅 viewer/editor。"""
+    code = "lw_enroll_" + secrets.token_urlsafe(32)
+    entry = {
+        "code": code,
+        "role": role,
+        "expiresAt": (
+            dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=7)
+        ).isoformat().replace("+00:00", "Z"),
+        "keyExpiresDays": 90,
+        "used": False,
+        "createdAt": dt.datetime.now(dt.timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z"),
+    }
+    with CODES_LOCK:
+        data = load_codes()
+        data["codes"].append(entry)
+        save_codes(data)
+    return entry
 
 
 def check_rate(ip):
@@ -379,6 +403,35 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path in {"/health", "/agent-enroll/health"}:
             self.send_json(200, {"status": "ok"})
+            return
+        if path in {"/issue", "/agent-enroll/issue"}:
+            client_ip = self.client_ip()
+            if not ip_allowed(client_ip):
+                self.send_json(403, {"error": "IP not allowed"})
+                return
+            try:
+                check_rate(client_ip)
+                query = parse_qs(urlparse(self.path).query)
+                role = (query.get("role") or ["viewer"])[0]
+                if role not in {"viewer", "editor"}:
+                    self.send_json(400, {"error": "role must be viewer or editor"})
+                    return
+                if role == "editor":
+                    if not EDITOR_TOKEN:
+                        self.send_json(403, {"error": "editor self-service is disabled"})
+                        return
+                    supplied = self.headers.get("X-Editor-Token", "")
+                    if not hmac.compare_digest(supplied, EDITOR_TOKEN):
+                        self.send_json(403, {"error": "invalid editor token"})
+                        return
+                entry = issue_self_service_code(role)
+                self.send_json(200, {
+                    "code": entry["code"],
+                    "role": entry["role"],
+                    "expiresAt": entry["expiresAt"],
+                })
+            except APIError as error:
+                self.send_json(error.status or 500, {"error": str(error)})
             return
         self.send_json(404, {"error": "not found"})
 
