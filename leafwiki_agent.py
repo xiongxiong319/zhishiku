@@ -348,6 +348,115 @@ def command_append(args):
         print(f"appended: {updated.get('path')} version={updated.get('version')}")
 
 
+def remember_request(base_url, method, path, params=None, body=None):
+    """返回 (status, data) 而不退出的请求封装，供 remember 命令做存在性判断。"""
+    url = base_url.rstrip("/") + path
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {api_key()}",
+        "User-Agent": "leafwiki-agent/1.0",
+    }
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    request = urllib.request.Request(url, data=data, method=method, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            raw = response.read().decode("utf-8", "replace")
+            return response.status, (json.loads(raw) if raw else None)
+    except urllib.error.HTTPError as error:
+        return error.code, error.read().decode("utf-8", "replace")
+
+
+def remember_get_page(base_url, path):
+    status, data = remember_request(base_url, "GET", "/api/pages/by-path", params={"path": path})
+    return data if (status == 200 and isinstance(data, dict)) else None
+
+
+def command_remember(args):
+    data = credential()
+    agent = data.get("agentUsername") or "agent"
+    tz = dt.timezone(dt.timedelta(hours=8))  # Asia/Shanghai
+    now = dt.datetime.now(tz)
+    today = now.strftime("%Y-%m-%d")
+    ymd = now.strftime("%Y%m%d")
+    base = args.base_url
+
+    dest = args.destination
+    if dest == "daily":
+        parent_path = f"agents/{agent}/daily"
+        page_path = f"{parent_path}/{today}"
+        slug = today
+        tags = f"agent:{agent}, memory:daily, type:{args.type}"
+    elif dest == "topic":
+        if not args.topic:
+            die("--destination topic 需要 --topic")
+        parent_path = f"agents/{agent}/topics"
+        page_path = f"{parent_path}/{args.topic}"
+        slug = args.topic
+        tags = f"agent:{agent}, memory:topic, topic:{args.topic}"
+    elif dest == "inbox":
+        parent_path = f"agents/{agent}/inbox"
+        page_path = f"{parent_path}/unverified-notes"
+        slug = "unverified-notes"
+        tags = f"agent:{agent}, memory:inbox, type:{args.type}"
+    else:
+        die("--destination 只能是 daily / topic / inbox")
+
+    page = remember_get_page(base, page_path)
+    if page is None:
+        parent = remember_get_page(base, parent_path)
+        if parent is None:
+            die(f"父节点不存在: {parent_path}（先执行 onboard_agent.py 建骨架）")
+        status, created = remember_request(base, "POST", "/api/pages", body={
+            "title": slug, "slug": slug, "parentId": parent["id"], "kind": "page",
+        })
+        if status not in (200, 201) or not isinstance(created, dict) or not created.get("id"):
+            die(f"创建页面失败: {page_path} (HTTP {status} {created})")
+        page = remember_get_page(base, page_path)
+        if page is None:
+            die(f"创建后仍找不到页面: {page_path}")
+
+    existing = page.get("content") or ""
+    seq = existing.count("- memory_id:") + 1
+    memory_id = f"{agent}-{ymd}-{seq:03d}"
+
+    entry_lines = [f"## {now.strftime('%H:%M')} | {args.type} | {args.title or args.type}"]
+    entry_lines.append(f"- memory_id: {memory_id}")
+    entry_lines.append(f"- type: {args.type}")
+    if args.context:
+        entry_lines.append(f"- context: {args.context}")
+    entry_lines.append(f"- content: {args.text}")
+    if args.confidence:
+        entry_lines.append(f"- confidence: {args.confidence}")
+    entry_lines.append(f"- tags: {tags}")
+    entry = "\n".join(entry_lines) + "\n"
+
+    for attempt in range(3):
+        new_content = (existing.rstrip() + "\n\n" + entry + "\n") if existing.strip() else (entry + "\n")
+        status, updated = remember_request(base, "PUT", f"/api/pages/{page['id']}", body={
+            "version": page.get("version"),
+            "title": page.get("title"),
+            "slug": page.get("slug"),
+            "content": new_content,
+            "tags": page.get("tags", []),
+            "properties": page.get("properties") or {},
+        })
+        if status in (200, 201):
+            print(f"已记录: {memory_id} -> {page_path}")
+            return
+        if status == 409:
+            page = remember_get_page(base, page_path)
+            if page is None:
+                die("409 后页面丢失")
+            existing = page.get("content") or ""
+            continue
+        die(f"写入失败: HTTP {status} {updated}")
+    die("409 冲突重试 3 次仍失败")
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="Minimal LeafWiki client for agents")
     parser.add_argument(
@@ -407,6 +516,17 @@ def build_parser():
     append.add_argument("--text-file")
     append.add_argument("--json", action="store_true")
     append.set_defaults(func=command_append)
+
+    remember = subparsers.add_parser("remember", help="按合同格式追加一条记忆（自动生成 memory_id + tags）")
+    remember.add_argument("--type", required=True,
+                          choices=["decision", "fact", "task", "preference", "error", "runbook"])
+    remember.add_argument("--text", required=True, help="记忆内容")
+    remember.add_argument("--title", default=None)
+    remember.add_argument("--context", default=None)
+    remember.add_argument("--confidence", default=None, choices=["high", "medium", "low"])
+    remember.add_argument("--destination", default="daily", choices=["daily", "topic", "inbox"])
+    remember.add_argument("--topic", default=None, help="--destination topic 时必填")
+    remember.set_defaults(func=command_remember)
     return parser
 
 
