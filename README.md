@@ -1,3 +1,57 @@
+# Agent 知识库接入（Nowen Note）
+
+中心化知识库 `https://wiki.kkuu.de`（Nowen Note），所有 agent 共用一份人格 + 规范 + 记忆。
+
+## 一键接入（kb.py）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xiongxiong319/zhishiku/main/kb.py -o /usr/local/bin/kb && chmod +x /usr/local/bin/kb
+```
+
+## 配置
+
+```bash
+# 登录密码（二选一）
+export KB_PASSWORD='<管理员密码>'                 # 或
+printf '<管理员密码>' > ~/.kb_password && chmod 600 ~/.kb_password
+
+# agent 身份（决定写哪个目录，隔离关键；二选一）
+export KB_AGENT='<你的agent名>'                    # 或
+printf '<你的agent名>' > ~/.kb_agent
+```
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `KB_BASE` | `https://wiki.kkuu.de` | 知识库 API 地址 |
+| `KB_ADMIN` | `admin` | 登录账号 |
+| `KB_PASSWORD` | 无 | 登录密码（或 `~/.kb_password`） |
+| `KB_AGENT` | `harness` | 本 agent 名（目录隔离关键） |
+
+## 日常使用
+
+```bash
+kb context                              # 开工：注入人格（SOUL+牛牛）+规范+近期记忆
+kb search "关键词"                       # 全局全文搜索
+kb remember --ws <工作区> --text "..." --type decision   # 写当日记忆（只写本 agent）
+kb wrap-up                              # 收尾检查
+```
+
+## 目录隔离
+
+每个 agent 用不同的 `KB_AGENT`，只写自己的顶层目录（`harness/`、`claude/`…），不串别的 agent。
+
+## 人格与规范
+
+知识库 `00-全局/` 下的 `SOUL`、`AGENTS_角色设定`（牛牛）、`AGENTS 通用守则` 是唯一来源。
+
+---
+
+## ⚠️ 已迁移（旧 LeafWiki 方案，仅供存档）
+
+> 以下内容是 LeafWiki v0.14.2 时代的接入方案。知识库已迁移到 Nowen Note，新接入请用上面的 `kb.py`。
+
+---
+
 # LeafWiki Agent 接入
 
 中心化知识库 `https://wiki.kkuu.de`（LeafWiki v0.14.2）的 **Agent 自助接入**方案。
